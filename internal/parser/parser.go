@@ -9,24 +9,13 @@ import (
 	"github.com/alfacentaur1/dockopt/internal/model"
 )
 
-package parser
-
-import (
-	"bytes"
-	"strings"
-
-	bkparser "github.com/moby/buildkit/frontend/dockerfile/parser"
-
-	"github.com/alfacentaur1/dockopt/internal/model"
-)
-
 // Parse converts buildkit's node tree into our model
-//e.g. COPY --from=build /app /app buildkit return Node
-//Value:     "copy"           ← malými písmeny
-//Flags:     ["--from=build"]
-//StartLine: 9
-//EndLine:   9
-//Next ──→ Node{Value: "/app"} ──→ Node{Value: "/app"} ──→ nil
+// e.g. COPY --from=build /app /app buildkit return Node
+// Value:     "copy"           ← malými písmeny
+// Flags:     ["--from=build"]
+// StartLine: 9
+// EndLine:   9
+// Next ──→ Node{Value: "/app"} ──→ Node{Value: "/app"} ──→ nil
 func Parse(src []byte) (*model.Dockerfile, error) {
 	res, err := bkparser.Parse(bytes.NewReader(src))
 	if err != nil {
