@@ -1,9 +1,9 @@
 package parser
 
 import (
+	"github.com/alfacentaur1/dockopt/internal/model"
 	"strings"
 	"testing"
-	"github.com/alfacentaur1/dockopt/internal/model"
 )
 
 const multiStage = `ARG GO_VERSION=1.22
@@ -20,7 +20,7 @@ COPY --from=build /out/app /app
 CMD ["/app"]
 `
 
-func mustParse(t *testing.T, src string) *model.Dockerfile{
+func mustParse(t *testing.T, src string) *model.Dockerfile {
 	t.Helper()
 	df, err := Parse([]byte(src))
 	if err != nil {
