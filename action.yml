@@ -1,0 +1,40 @@
+name: dockopt
+description: Analyze Dockerfiles and comment the findings, with a suggested fix, on the pull request.
+branding:
+  icon: package
+  color: blue
+
+inputs:
+  paths:
+    description: Dockerfiles or directories to check, space separated. Empty finds every Dockerfile in the repo.
+    default: ""
+  fail-on:
+    description: Fail the job when a finding has at least this severity (info, warning, error) or "never".
+    default: warning
+  args:
+    description: Extra flags for `dockopt ci`, e.g. "--ignore DO004".
+    default: ""
+  token:
+    description: Token used to comment on the pull request.
+    default: ${{ github.token }}
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-go@v5
+      with:
+        go-version-file: ${{ github.action_path }}/go.mod
+        cache-dependency-path: ${{ github.action_path }}/go.sum
+    - name: Build dockopt
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: go build -trimpath -o "$RUNNER_TEMP/dockopt" ./cmd/dockopt
+    - name: Run dockopt
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        # outside pull requests there is nothing to comment on, so just print the report
+        provider=auto
+        if [ -z "${{ github.event.pull_request.number }}" ]; then provider=none; fi
+        "$RUNNER_TEMP/dockopt" ci --provider "$provider" --fail-on "${{ inputs.fail-on }}" ${{ inputs.args }} ${{ inputs.paths }}
