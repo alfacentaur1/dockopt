@@ -13,10 +13,11 @@ type Instruction struct {
 	Args  []string
 	JSON  bool // exec form: RUN ["a", "b"]
 
-	StartLine int
+	StartLine int // 0 for instructions added by a fixer
 	EndLine   int
-	Dirty     bool // changed by a fixer, needs re-rendering
-	Deleted   bool // removed by a fixer, kept so line numbers stay valid
+	Dirty     bool   // changed by a fixer, needs re-rendering
+	Deleted   bool   // removed by a fixer, kept so line numbers stay valid
+	Raw       string // replacement text; when set, the renderer writes it verbatim
 }
 
 type Dockerfile struct {
@@ -72,8 +73,8 @@ func (d *Dockerfile) Stages() []*Stage {
 
 }
 
-// find the last stage, needed in opt tasks
-func (d *Dockerfile) finalStage() *Stage {
+// FinalStage is the stage that ends up in the image, i.e. the last one.
+func (d *Dockerfile) FinalStage() *Stage {
 	stages := d.Stages()
 
 	if len(stages) != 0 {
@@ -81,6 +82,38 @@ func (d *Dockerfile) finalStage() *Stage {
 	}
 
 	return nil
+}
+
+// RawText returns the original source text of an instruction, continuation
+// lines included. Instructions added by a fixer have no source and return Raw.
+func (d *Dockerfile) RawText(in *Instruction) string {
+	if in.StartLine <= 0 || in.EndLine > len(d.Source) {
+		return in.Raw
+	}
+	return strings.Join(d.Source[in.StartLine-1:in.EndLine], "\n")
+}
+
+// Replace marks in as changed and gives it new text.
+func (d *Dockerfile) Replace(in *Instruction, raw string) {
+	in.Raw = raw
+	in.Dirty = true
+}
+
+// Delete marks in as removed.
+func (d *Dockerfile) Delete(in *Instruction) {
+	in.Deleted = true
+}
+
+// InsertBefore puts in right before target, if target isn't in the list,
+// in is appended at the end
+func (d *Dockerfile) InsertBefore(target, in *Instruction) {
+	for i, existing := range d.Instructions {
+		if existing == target {
+			d.Instructions = slices.Insert(d.Instructions, i, in)
+			return
+		}
+	}
+	d.Instructions = append(d.Instructions, in)
 }
 
 // InsertAfter puts in right after target, if target isn't in the list,
