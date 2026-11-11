@@ -1,0 +1,16 @@
+# Comment dockopt findings on GitLab merge requests.
+#
+# Add a project access token with the `api` scope as a masked CI/CD variable
+# named DOCKOPT_GITLAB_TOKEN (the job token can't write MR notes).
+
+dockopt:
+  stage: test
+  image: golang:1.27
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      changes:
+        - "**/Dockerfile*"
+        - "**/*.Dockerfile"
+  script:
+    - go install github.com/alfacentaur1/dockopt/cmd/dockopt@latest
+    - dockopt ci --fail-on warning

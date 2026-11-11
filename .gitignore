@@ -1,0 +1,8 @@
+
+# build output
+bin/
+web/dockopt.wasm
+web/wasm_exec.js
+
+# toolchain archives never belong in the repo
+*.tar.gz

@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>dockopt · Dockerfile optimizer</title>
+    <meta name="description" content="Analyze and fix Dockerfiles in your browser. Runs on WebAssembly, nothing leaves your machine." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect x='1' y='7' width='4' height='3' fill='%233fb6ff'/%3E%3Crect x='6' y='7' width='4' height='3' fill='%233fb6ff'/%3E%3Crect x='6' y='3' width='4' height='3' fill='%233fb6ff'/%3E%3Crect x='11' y='7' width='4' height='3' fill='%233fb6ff'/%3E%3Cpath d='M0 11h16c-1 3-4 4-8 4s-7-1-8-4z' fill='%233fb6ff'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <header class="top">
+      <div class="brand">
+        <span class="logo" aria-hidden="true"></span>
+        <div>
+          <h1>dockopt</h1>
+          <p>Find and fix problems in Dockerfiles. Runs in your browser on WebAssembly, nothing is uploaded.</p>
+        </div>
+      </div>
+      <a class="gh" href="https://github.com/alfacentaur1/dockopt">GitHub</a>
+    </header>
+
+    <main class="grid">
+      <section class="pane">
+        <div class="bar">
+          <label>Example
+            <select id="example">
+              <option value="go">Go API</option>
+              <option value="node">Node app</option>
+              <option value="python">Python service</option>
+              <option value="clean">Already good</option>
+            </select>
+          </label>
+          <label class="check"><input type="checkbox" id="has-ignore" /> project has a .dockerignore</label>
+        </div>
+        <textarea id="editor" spellcheck="false" aria-label="Dockerfile"></textarea>
+      </section>
+
+      <section class="pane">
+        <div class="bar tabs" role="tablist">
+          <button role="tab" aria-selected="true" data-tab="findings">Findings <span id="count" class="pill">·</span></button>
+          <button role="tab" aria-selected="false" data-tab="fixed">Fixed</button>
+          <button role="tab" aria-selected="false" data-tab="diff">Diff</button>
+          <button id="apply" class="primary" disabled>Apply fixes</button>
+        </div>
+        <div id="findings" class="panel" role="tabpanel"><p class="muted">Loading the analyzer…</p></div>
+        <pre id="fixed" class="panel code" role="tabpanel" hidden></pre>
+        <pre id="diff" class="panel code" role="tabpanel" hidden></pre>
+      </section>
+    </main>
+
+    <footer class="foot">
+      <span>Same rules as the CLI: <code>dockopt analyze</code>, <code>dockopt fix -w</code>, <code>dockopt bench</code>.</span>
+      <span id="rules-count"></span>
+    </footer>
+
+    <script src="wasm_exec.js"></script>
+    <script src="app.js"></script>
+  </body>
+</html>
