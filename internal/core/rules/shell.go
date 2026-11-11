@@ -78,7 +78,36 @@ func hasCacheMount(in *model.Instruction, path string) bool {
 	return false
 }
 
-// firstWord returns the instruction keyword as written in raw (FROM, from...).
+var commandEnd = regexp.MustCompile(`&&|\|\||;|\|`)
+
+// insertFlag adds flag right after every match of re (e.g. `apt-get install`)
+// whose command doesn't already contain the flag. Works on raw text, so
+// line continuations and indentation survive.
+func insertFlag(raw string, re *regexp.Regexp, flag string) (string, bool) {
+	matches := re.FindAllStringIndex(raw, -1)
+	changed := false
+	for i := len(matches) - 1; i >= 0; i-- {
+		end := matches[i][1]
+		rest := raw[end:]
+		if loc := commandEnd.FindStringIndex(rest); loc != nil {
+			rest = rest[:loc[0]]
+		}
+		if strings.Contains(rest, flag) {
+			continue
+		}
+		raw = raw[:end] + " " + flag + raw[end:]
+		changed = true
+	}
+	return raw, changed
+}
+
+// missingFlag reports whether some match of re in cmd lacks flag in its command.
+func missingFlag(cmd string, re *regexp.Regexp, flag string) bool {
+	_, changed := insertFlag(cmd, re, flag)
+	return changed
+}
+
+// replaceKeyword swaps the instruction keyword at the start of raw.
 func replaceKeyword(raw, keyword string) string {
 	trimmed := strings.TrimLeft(raw, " \t")
 	lead := raw[:len(raw)-len(trimmed)]
