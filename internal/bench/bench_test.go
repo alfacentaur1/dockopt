@@ -8,6 +8,7 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 )
 
 type fakeEngine struct {
@@ -115,6 +116,28 @@ func TestRun(t *testing.T) {
 	// the original context must not be modified by touching
 	if b, _ := os.ReadFile(filepath.Join(opts.ContextDir, "main.go")); string(b) != "package main\n" {
 		t.Error("bench modified the real project")
+	}
+}
+
+func TestRunRepeatsBuilds(t *testing.T) {
+	eng := &fakeEngine{info: map[string]ImageInfo{"dockopt-bench": {}}}
+	res, err := Run(context.Background(), Options{
+		ContextDir: goProject(t), Original: []byte("FROM alpine:3.20\n"), Fixed: []byte("FROM alpine:3.20\n"), Runs: 3,
+	}, eng, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(eng.builds) != 12 || res.Runs != 3 {
+		t.Fatalf("3 cold + 3 warm per variant expected, got %d builds, runs=%d", len(eng.builds), res.Runs)
+	}
+}
+
+func TestMedian(t *testing.T) {
+	if got := median([]time.Duration{5, 1, 3}); got != 3 {
+		t.Errorf("odd: got %v", got)
+	}
+	if got := median([]time.Duration{4, 1, 3, 2}); got != 2 {
+		t.Errorf("even: got %v", got)
 	}
 }
 

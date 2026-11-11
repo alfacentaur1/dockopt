@@ -17,6 +17,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -56,6 +57,7 @@ type Result struct {
 	Original Measurement `json:"original"`
 	Fixed    Measurement `json:"fixed"`
 	Touched  string      `json:"touched"` // file modified before the warm build
+	Runs     int         `json:"runs"`    // build times are the median of this many builds
 }
 
 // Options for Run.
@@ -66,6 +68,9 @@ type Options struct {
 	// Touch is the file (relative to ContextDir) modified before the warm
 	// build. Empty picks a source file automatically.
 	Touch string
+	// Runs repeats every build and keeps the median, because a single build
+	// time is noisy. Values below 1 mean 1.
+	Runs int
 	// Log receives progress lines; may be nil.
 	Log io.Writer
 }
@@ -86,7 +91,7 @@ func Run(ctx context.Context, opts Options, eng Engine, scan Scanner) (*Result, 
 		}
 	}
 
-	res := &Result{}
+	res := &Result{Runs: max(1, opts.Runs)}
 	for _, v := range []struct {
 		name string
 		src  []byte
@@ -121,13 +126,24 @@ func measure(ctx context.Context, name string, src []byte, opts Options, eng Eng
 	tag := "dockopt-bench-" + name + ":" + randomTag()
 	defer eng.Remove(context.WithoutCancel(ctx), tag) //nolint:errcheck // best effort cleanup
 
-	var m Measurement
-	logf("%s: cold build", name)
-	start := time.Now()
-	if err := eng.Build(ctx, dir, dockerfile, tag, true); err != nil {
-		return m, "", err
+	runs := max(1, opts.Runs)
+	timed := func(noCache bool) (time.Duration, error) {
+		start := time.Now()
+		err := eng.Build(ctx, dir, dockerfile, tag, noCache)
+		return time.Since(start), err
 	}
-	m.Cold = time.Since(start)
+
+	var m Measurement
+	cold := make([]time.Duration, 0, runs)
+	for i := 0; i < runs; i++ {
+		logf("%s: cold build %d/%d", name, i+1, runs)
+		d, err := timed(true)
+		if err != nil {
+			return m, "", err
+		}
+		cold = append(cold, d)
+	}
+	m.Cold = median(cold)
 
 	info, err := eng.Inspect(ctx, tag)
 	if err != nil {
@@ -135,16 +151,20 @@ func measure(ctx context.Context, name string, src []byte, opts Options, eng Eng
 	}
 	m.Size, m.Layers = info.Size, info.Layers
 
-	touched, err := touch(dir, opts.Touch)
-	if err != nil {
-		return m, "", err
+	var touched string
+	warm := make([]time.Duration, 0, runs)
+	for i := 0; i < runs; i++ {
+		if touched, err = touch(dir, opts.Touch); err != nil {
+			return m, "", err
+		}
+		logf("%s: warm build %d/%d after touching %s", name, i+1, runs, touched)
+		d, err := timed(false)
+		if err != nil {
+			return m, "", err
+		}
+		warm = append(warm, d)
 	}
-	logf("%s: warm build after touching %s", name, touched)
-	start = time.Now()
-	if err := eng.Build(ctx, dir, dockerfile, tag, false); err != nil {
-		return m, "", err
-	}
-	m.Warm = time.Since(start)
+	m.Warm = median(warm)
 
 	if scan != nil {
 		logf("%s: scanning for CVEs", name)
@@ -155,6 +175,15 @@ func measure(ctx context.Context, name string, src []byte, opts Options, eng Eng
 		m.CVEs = &n
 	}
 	return m, touched, nil
+}
+
+func median(ds []time.Duration) time.Duration {
+	s := slices.Clone(ds)
+	slices.Sort(s)
+	if len(s)%2 == 1 {
+		return s[len(s)/2]
+	}
+	return (s[len(s)/2-1] + s[len(s)/2]) / 2
 }
 
 // baseImages lists external images used by FROM in either Dockerfile.
